@@ -14,7 +14,23 @@ collection = client.get_or_create_collection(
 )
 
 
-def add_chunks(chunks, embeddings, source="unknown"):
+def document_exists(file_hash):
+    """
+    Check whether a document with this file hash
+    already exists in ChromaDB.
+    """
+    if not file_hash:
+        return False
+
+    results = collection.get(
+        where={"file_hash": file_hash},
+        limit=1
+    )
+
+    return len(results["ids"]) > 0
+
+
+def add_chunks(chunks, embeddings, source="unknown", file_hash=None):
     """
     Store text chunks and their embeddings in ChromaDB.
     """
@@ -41,7 +57,8 @@ def add_chunks(chunks, embeddings, source="unknown"):
         {
             "page": int(chunk["page"]),
             "chunk_index": int(chunk["chunk_index"]),
-            "source": source
+            "source": source,
+            "file_hash": file_hash or ""
         }
         for chunk in chunks
     ]
@@ -87,3 +104,45 @@ def search_chunks(query_embedding, n_results=3):
         })
 
     return matches
+
+
+def get_documents():
+    """
+    Return all stored documents and their chunk counts.
+    """
+    results = collection.get(
+        include=["metadatas"]
+    )
+
+    documents = {}
+
+    for metadata in results["metadatas"]:
+        source = metadata.get("source", "Unknown")
+        file_hash = metadata.get("file_hash", "")
+
+        key = (source, file_hash)
+
+        if key not in documents:
+            documents[key] = {
+                "source": source,
+                "file_hash": file_hash,
+                "chunks": 0
+            }
+
+        documents[key]["chunks"] += 1
+
+    return list(documents.values())
+
+
+def delete_document(source, file_hash=None):
+    """
+    Delete a document and all its chunks from ChromaDB.
+    """
+    if file_hash:
+        collection.delete(
+            where={"file_hash": file_hash}
+        )
+    else:
+        collection.delete(
+            where={"source": source}
+        )

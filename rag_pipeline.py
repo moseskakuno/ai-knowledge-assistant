@@ -12,9 +12,10 @@ client = OpenAI()
 CHAT_MODEL = "gpt-6-luna"
 
 
-def answer_question(question, n_results=3):
+def answer_question(question, n_results=5):
     """
-    Answer a question using relevant document chunks.
+    Answer questions using relevant chunks
+    from all uploaded PDF documents.
     """
 
     if not question or not question.strip():
@@ -23,7 +24,7 @@ def answer_question(question, n_results=3):
     # Step 1: Create embedding for the question
     question_embedding = create_embedding(question)
 
-    # Step 2: Search for relevant document chunks
+    # Step 2: Search across all documents in ChromaDB
     results = search_chunks(
         question_embedding,
         n_results=n_results
@@ -35,39 +36,55 @@ def answer_question(question, n_results=3):
             "sources": []
         }
 
-    # Step 3: Prepare context and sources
+    # Step 3: Prepare context and source information
     context_parts = []
     sources = []
 
     for result in results:
+
         metadata = result["metadata"]
+
+        source_info = {
+            "source": metadata.get("source", "Unknown"),
+            "page": metadata.get("page", "Unknown"),
+            "text": result["text"],
+            "distance": result["distance"]
+        }
+
+        # Avoid duplicate source passages
+        if not any(
+            existing["source"] == source_info["source"]
+            and existing["page"] == source_info["page"]
+            and existing["text"] == source_info["text"]
+            for existing in sources
+        ):
+            sources.append(source_info)
 
         context_parts.append(
             f"""
-            Source: {metadata['source']}
-            Page: {metadata['page']}
-            Content: {result['text']}
+            Document: {source_info['source']}
+            Page: {source_info['page']}
+            Content: {source_info['text']}
             """
         )
 
-        sources.append({
-            "source": metadata["source"],
-            "page": metadata["page"],
-            "text": result["text"]
-        })
-
     context = "\n".join(context_parts)
 
-    # Step 4: Generate an answer with the AI model
+    # Step 4: Generate answer using retrieved context
     response = client.responses.create(
         model=CHAT_MODEL,
         instructions="""
         You are an AI Knowledge Assistant.
 
-        Answer questions using only the supplied context.
+        Answer questions using only the supplied document context.
+
+        The context may contain information from multiple PDF documents.
+
+        Compare and combine information from different documents
+        when relevant.
 
         If the answer cannot be found in the context,
-        clearly say that the documents do not contain
+        clearly explain that the documents do not contain
         enough information.
 
         Do not invent facts.
@@ -78,14 +95,17 @@ def answer_question(question, n_results=3):
         and page number.
         """,
         input=f"""
-        Context:
+        Document Context:
+
         {context}
 
-        Question:
+        User Question:
+
         {question}
         """
     )
 
+    # Step 5: Return answer and sources
     return {
         "answer": response.output_text,
         "sources": sources
