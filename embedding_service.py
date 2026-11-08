@@ -1,17 +1,30 @@
-
 import os
+import streamlit as st
 
 from openai import OpenAI
 from dotenv import load_dotenv
 
-# Load environment variables
+
+# Load local environment variables
 load_dotenv()
 
-# Initialize OpenAI client
+# Get API key from local .env or Streamlit Cloud Secrets
 api_key = os.getenv("OPENAI_API_KEY")
 
 if not api_key:
-    raise ValueError("OPENAI_API_KEY not found in .env file")
+    try:
+        api_key = st.secrets["OPENAI_API_KEY"]
+    except Exception:
+        api_key = None
+
+if not api_key:
+    raise ValueError(
+        "OPENAI_API_KEY not found. "
+        "Configure it in .env or Streamlit Cloud Secrets."
+    )
+
+# Make API key available to other OpenAI clients
+os.environ["OPENAI_API_KEY"] = api_key
 
 client = OpenAI(api_key=api_key)
 
@@ -19,10 +32,6 @@ MODEL = "text-embedding-3-small"
 
 
 def create_embedding(text):
-    """
-    Convert a single text into an embedding vector.
-    """
-
     if not text or not text.strip():
         raise ValueError("Text cannot be empty")
 
@@ -37,10 +46,6 @@ def create_embedding(text):
 
 
 def create_embeddings(texts):
-    """
-    Convert multiple texts into embedding vectors.
-    """
-
     if not texts:
         return []
 
@@ -60,5 +65,8 @@ def create_embeddings(texts):
 
     return [
         item.embedding
-        for item in sorted(response.data, key=lambda item: item.index)
+        for item in sorted(
+            response.data,
+            key=lambda item: item.index
+        )
     ]
