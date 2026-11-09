@@ -194,6 +194,8 @@ The application includes a dashboard that provides an overview of the document k
 
 **Moses Ochieng Akuno**
 
+Web Developer | Python Developer | AI Automation Enthusiast
+
 GitHub: [https://github.com/moseskakuno/ai-knowledge-assistant](https://github.com/moseskakuno/ai-knowledge-assistant)
 
 A portfolio project demonstrating practical applications of:
